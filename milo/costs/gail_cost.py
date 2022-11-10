@@ -40,7 +40,7 @@ class GAILCost:
         
         # discriminator
         self.disc = Discriminator(disc_cfg)
-        self.disc_opt = optim.Adam(cost_cfg.lr, eps=cost_cfg.eps)
+        self.disc_opt = optim.Adam(self.disc.parameters(), cost_cfg.lr, eps=cost_cfg.eps)
         
         self.scaling_coef = cost_cfg.scaling_coef
         self.reg_coef = cost_cfg.reg_coef

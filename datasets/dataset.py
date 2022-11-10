@@ -27,7 +27,7 @@ class AMPExpertDataset(Dataset):
         return states, next_states
     
 class OfflineDataset(Dataset):
-    '''Offline, model-based dataset.'''
+    '''Offline, model-based dataset with actions.'''
     def __init__(self, states: torch.Tensor, actions: torch.Tensor, next_states: torch.Tensor, device: str='cuda'):
         super().__init__()
         self.device = device
