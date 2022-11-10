@@ -1,46 +1,50 @@
 import torch
 
-def get_samples(chkpt, env, n_samples, offline=False):
-    agent = torch.load(chkpt)
-    agent.vec_env = env
+from rl_games.torch_runner import Runner
+from rl_games.algos_torch import model_builder
+from isaacgymenvs.learning import amp_continuous
+from isaacgymenvs.learning import amp_players
+from isaacgymenvs.learning import amp_models
+from isaacgymenvs.learning import amp_network_builder
+from isaacgymenvs.utils.rlgames_utils import RLGPUAlgoObserver
+
+from datasets.dataset import AMPExpertDataset, OfflineDataset
+
+def build_runner(algo_observer):
+        runner = Runner(algo_observer)
+        runner.algo_factory.register_builder('amp_continuous', lambda **kwargs : amp_continuous.AMPAgent(**kwargs))
+        runner.player_factory.register_builder('amp_continuous', lambda **kwargs : amp_players.AMPPlayerContinuous(**kwargs))
+        model_builder.register_model('continuous_amp', lambda network, **kwargs : amp_models.ModelAMPContinuous(network))
+        model_builder.register_network('amp', lambda **kwargs : amp_network_builder.AMPBuilder())
+
+        return runner
+
+if __name__ == '__main__':
+    # init runner
+    runner = build_runner(RLGPUAlgoObserver())
     
-    if offline:
-        states = []
-        actions = []
-        next_states = []
-    else:
-        states = []
-        next_states = []
+    # define checkpoints
+    random_checkpoint = './runs/nn/HumanoidAMP_50.pth'
+    medium_checkpoint = './runs/nn/HumanoidAMP_300.pth'
+    expert_checkpoint = './runs/nn/HumanoidAMP.pth'
     
-    samples = 0
-    ob = env.reset()
-    done = False
-    while samples < n_samples:
-        ob_tensor = torch.FloatTensor(ob)
-        res_dict = agent.get_action_values(ob_tensor)
-        action = res_dict['actions']
-        
-        n_ob, _, done, _ = agent.env_step(action)
-        
-        if offline:
-            states.append(ob_tensor)
-            actions.append(torch.FloatTensor(action))
-            next_states.append(torch.FloatTensor(n_ob))
-        else:
-            states.append(ob_tensor)
-            next_states.append(torch.FloatTensor(n_ob))
-        
-        if done:
-            ob = env.reset()
-        else:
-            ob = n_ob
-            
-        samples += ob_tensor.size(0)
-        
-    states = torch.stack(states, dim=0)
-    next_states = torch.stack(next_states, dim=0)
-    if offline:
-        actions = torch.stack(actions, dim=0)
-        return states, actions, next_states
-    
-    return states, next_states
+    for checkpoint in [random_checkpoint, medium_checkpoint, expert_checkpoint]:
+        # test runner (define cfg + run)
+        run_cfg = {
+            'train': False,
+            'play': True,
+            'checkpoint': checkpoint,
+            'log_data': True,
+            'offline': checkpoint != expert_checkpoint,
+            'sigma': None
+        }
+        out = runner.run(run_cfg)
+        if out is not None:
+            if run_cfg['offline']:
+                state, action, next_state = out
+                dataset = OfflineDataset(state, action, next_state, device='cpu')
+                torch.save(dataset, f'./data/offline/{"medium" if checkpoint == medium_checkpoint else "random"}.pt')
+            else:
+                state, next_state = out
+                dataset = AMPExpertDataset(state, next_state, device='cpu')
+                torch.save(dataset, './data/expert/expert_dataset.pt')
