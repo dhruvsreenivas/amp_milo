@@ -1,3 +1,4 @@
+task: backflip
 state_dim: ???
 action_dim: ???
 device: cuda
@@ -7,13 +8,8 @@ wandb: true
 # whether to train model or train policy
 train_dynamics: true
 
-# all data config params (expert + offline)
-data:
-  expert:
-    n_samples: 50000
-
-  offline:
-    n_samples: 100000
+# data
+level: medium
 
 # everything about dynamics model training
 dynamics_training:
@@ -21,8 +17,10 @@ dynamics_training:
   action_dim: ${action_dim}
   hidden_dims: [512, 512, 512, 512]
 
+  single_step: true
   normalize_inputs: true
   n_models: 5
+  activation: relu
   seed: ${seed}
   device: ${device}
 

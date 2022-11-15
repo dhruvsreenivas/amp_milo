@@ -46,8 +46,8 @@ class DynamicsEnsemble:
         loader = iterative_dataloader(self.dataset, self.cfg.batch_size)
         trained_models = []
         loss_log = {}
-        for idx in range(len(self.models)):
-            print('=' * 20 + f' Training model {idx}... ' + '=' * 20)
+        for idx in range(self.n_models):
+            print('=' * 20 + f' Training model {idx} ... ' + '=' * 20)
             model = self.models[idx]
             
             epoch_losses = model.train_model(loader, self.cfg.n_epochs, self.normalize_inputs, id=idx)

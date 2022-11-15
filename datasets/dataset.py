@@ -8,7 +8,7 @@ class AMPExpertDataset(Dataset):
         super().__init__()
         self.device = device
         
-        assert self.states.size(0) == self.next_states.size(0), "don't have the same amount of (s, s')"
+        assert expert_states.size(0) == expert_next_states.size(0), "don't have the same amount of (s, s')"
         self.states = expert_states.to(device)
         self.next_states = expert_next_states.to(device)
         

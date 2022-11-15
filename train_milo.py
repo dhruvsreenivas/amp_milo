@@ -1,3 +1,4 @@
+import isaacgym
 import torch
 import numpy as np
 from pathlib import Path
@@ -6,6 +7,7 @@ from hydra.utils import to_absolute_path
 import isaacgymenvs
 import wandb
 
+from datasets.dataset import AMPExpertDataset, OfflineDataset
 from milo.dynamics_models.ensembles import DynamicsEnsemble
 
 def set_seed_everywhere(seed):
@@ -26,11 +28,21 @@ class AMPWorkspace:
         
         # data setup
         data_dir = Path(to_absolute_path('data'))
-        self.expert_dataset = data_dir / 'expert' / f'dataset_{self.cfg.data.expert.n_samples}.npz'
-        self.offline_dataset = data_dir / 'offline' / f'dataset_{self.cfg.data.offline.n_samples}.npz'
+        
+        expert_dataset_dir = data_dir / 'expert' / self.cfg.task / 'expert_dataset.pt'
+        expert_data = torch.load(expert_dataset_dir)
+        self.expert_dataset = AMPExpertDataset(*expert_data, device=self.cfg.device)
+        
+        offline_dataset_dir = data_dir / 'offline' / self.cfg.task / f'{self.cfg.level}_dataset.pt'
+        offline_data = torch.load(offline_dataset_dir)
+        self.offline_dataset = OfflineDataset(*offline_data, device=self.cfg.device)
+        
+        # set up state and action dims
+        self.cfg.state_dim = offline_data[0].size(1)
+        self.cfg.action_dim = offline_data[1].size(1)
         
         # dynamics model setup
-        self.dynamics_dir = Path(to_absolute_path('pretrained_dynamics_models')) / f'model_{self.cfg.data.offline.n_samples}'
+        self.dynamics_dir = Path(to_absolute_path('pretrained_dynamics_models')) / self.cfg.task / self.cfg.level
         self.dynamics_dir.mkdir(parents=True, exist_ok=True)
         self.dynamics_ensemble = DynamicsEnsemble(self.offline_dataset, self.cfg.dynamics_training)
         
@@ -38,6 +50,11 @@ class AMPWorkspace:
         
     def train_dynamics(self):
         loss_log = self.dynamics_ensemble.train_models()
+        # save dynamics ensemble to directory
+        dynamics_save_path = Path(self.dynamics_dir) / f'dynamics_ensemble_{self.cfg.dynamics_training.n_models}.pt'
+        torch.save(self.dynamics_ensemble, dynamics_save_path)
+        print('SAVED DYNAMICS ENSEMBLE TO DISK')
+        
         return loss_log
     
 @hydra.main(config_path='./milo_cfgs', config_name='config')

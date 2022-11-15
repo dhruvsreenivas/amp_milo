@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import grad
-from utils import mlp
+from milo.utils import mlp
 
 class Discriminator(nn.Module):
     '''Discriminator network used for GAIL cost.'''

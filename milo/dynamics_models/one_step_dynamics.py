@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
-from utils import mlp
+from milo.utils import mlp
 import wandb
 
 class OneStepDynamicsModel(nn.Module):
@@ -67,7 +67,7 @@ class OneStepDynamicsModel(nn.Module):
             
             avg_loss = sum(train_losses) / len(train_losses)
             epoch_losses.append(avg_loss)
-            wandb.log(avg_loss)
+            wandb.log({'avg_model_loss': avg_loss})
             
         wandb.finish()
         return epoch_losses

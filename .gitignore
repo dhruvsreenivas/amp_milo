@@ -5,5 +5,6 @@ trained_amp_agents/
 pretrained_dynamics_models/
 trained_milo_agents/
 data/
+outputs/
 wandb/
 runs/
