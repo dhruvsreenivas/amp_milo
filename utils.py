@@ -62,8 +62,6 @@ def get_data(cfg):
         'env_creator': create_env_thunk,
     })
     
-    # define checkpoints
-    
     # set train / test config (i guess)
     rlg_config_dict = omegaconf_to_dict(cfg.train)
     

@@ -1,18 +1,17 @@
 import torch
 import torch.nn as nn
 
-def mlp(input_dim, hidden_sizes, output_dim, activation='relu'):
-    layers = []
-    act = nn.ReLU() if activation == 'relu' else nn.Tanh()
-    
-    dim = input_dim
-    for size in hidden_sizes:
-        layers.append(nn.Linear(dim, size))
-        layers.append(act)
-        dim = size
-    layers.append(nn.Linear(dim, output_dim))
-    
-    return nn.Sequential(*layers)
+def rssm_weight_init(m):
+    """Same weight initializations as tf2"""
+    if type(m) == nn.Linear:
+        nn.init.xavier_uniform_(m.weight.data)
+        if m.bias is not None:
+            nn.init.zeros_(m.bias.data)
+    if type(m) == nn.GRUCell:
+        nn.init.xavier_uniform_(m.weight_ih.data)
+        nn.init.orthogonal_(m.weight_hh.data)
+        nn.init.zeros_(m.bias_ih.data)
+        nn.init.zeros_(m.bias_hh.data)
 
 def get_mean_var_with_masks(values, masks):
     '''Mean and variance with masks from RL games repo.'''
@@ -40,7 +39,7 @@ class RunningMeanStd(nn.Module):
                 self.axis = [0,2]
             if len(self.insize) == 1:
                 self.axis = [0]
-            in_size = self.insize[0] 
+            in_size = self.insize[0]
         else:
             self.axis = [0]
             in_size = insize

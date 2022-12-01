@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
-from milo.utils import mlp
+from milo.nn import mlp
 import wandb
 
 class OneStepDynamicsModel(nn.Module):
@@ -28,7 +28,7 @@ class OneStepDynamicsModel(nn.Module):
         epoch_losses = []
         
         # project for specific model run
-        name=f'dyn_model_{id}'
+        name=f'{"diff_in_state" if self.train_for_diff else "next_state"}/dyn_model_{id}'
         wandb.init(project='amp dynamics model training', entity='dhruv_sreenivas', name=name)
         
         for _ in range(n_epochs):

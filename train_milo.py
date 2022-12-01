@@ -51,7 +51,7 @@ class AMPWorkspace:
     def train_dynamics(self):
         loss_log = self.dynamics_ensemble.train_models()
         # save dynamics ensemble to directory
-        dynamics_save_path = Path(self.dynamics_dir) / f'dynamics_ensemble_{self.cfg.dynamics_training.n_models}.pt'
+        dynamics_save_path = Path(self.dynamics_dir) / f'dynamics_ensemble_{self.cfg.dynamics_training.n_models}_{self.cfg.dynamics_training.train_for_diff}.pt'
         torch.save(self.dynamics_ensemble, dynamics_save_path)
         print('SAVED DYNAMICS ENSEMBLE TO DISK')
         
