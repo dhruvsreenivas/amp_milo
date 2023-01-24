@@ -17,6 +17,7 @@ def set_seed_everywhere(seed):
 class AMPWorkspace:
     def __init__(self, cfg):
         self.cfg = cfg
+        self.dyn_cfg = cfg.dynamics_training
         
         # set up
         self.setup()
@@ -42,7 +43,7 @@ class AMPWorkspace:
         self.cfg.action_dim = offline_data[1].size(1)
         
         # dynamics model setup
-        self.dynamics_dir = Path(to_absolute_path('pretrained_dynamics_models')) / self.cfg.task / self.cfg.level
+        self.dynamics_dir = Path(to_absolute_path('pretrained_dynamics_models')) / self.cfg.task / self.cfg.level / self.cfg.dynamics_training.model_type
         self.dynamics_dir.mkdir(parents=True, exist_ok=True)
         self.dynamics_ensemble = DynamicsEnsemble(self.offline_dataset, self.cfg.dynamics_training)
         
@@ -51,7 +52,7 @@ class AMPWorkspace:
     def train_dynamics(self):
         loss_log = self.dynamics_ensemble.train_models()
         # save dynamics ensemble to directory
-        dynamics_save_path = Path(self.dynamics_dir) / f'dynamics_ensemble_{self.cfg.dynamics_training.n_models}_{self.cfg.dynamics_training.train_for_diff}.pt'
+        dynamics_save_path = Path(self.dynamics_dir) / f'ensemble_{self.dyn_cfg.n_models}_{self.dyn_cfg.train_for_diff}_{self.dyn_cfg.optim}_{self.dyn_cfg.lr}.pt'
         torch.save(self.dynamics_ensemble, dynamics_save_path)
         print('SAVED DYNAMICS ENSEMBLE TO DISK')
         

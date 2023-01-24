@@ -45,7 +45,7 @@ from isaacgymenvs.utils.utils import set_np_formatting, set_seed
 ## OmegaConf & Hydra Config
 
 # Resolvers used in hydra configs (see https://omegaconf.readthedocs.io/en/2.1_branch/usage.html#resolvers)
-@hydra.main(config_name="config", config_path="./amp_cfgs")
+@hydra.main(config_path="./amp_cfgs", config_name="config")
 def launch_rlg_hydra(cfg: DictConfig):
     from isaacgymenvs.utils.rlgames_utils import RLGPUEnv, RLGPUAlgoObserver, get_rlgames_env_creator
     from rl_games.common import env_configurations, vecenv

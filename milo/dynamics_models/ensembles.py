@@ -1,7 +1,7 @@
 import torch
-from milo.dynamics_models.one_step_dynamics import OneStepDynamicsModel
+from milo.dynamics_models.one_step_dynamics import OneStepDynamicsModel, ResNetDynamicsModel, DenseNetDynamicsModel
 from milo.dynamics_models.multi_step_dynamics import MultiStepDynamicsModel
-from datasets.dataset import iterative_dataloader
+from datasets.dataset import iterative_dataloader, get_dataset_transformations
 from pathlib import Path
 
 class DynamicsEnsemble:
@@ -17,16 +17,27 @@ class DynamicsEnsemble:
         self.base_seed = cfg.seed
         self.device = torch.device(cfg.device)
         
+        self.transformations = get_dataset_transformations(self.dataset, diff=cfg.train_for_diff)
+        
         if cfg.single_step:
+            if cfg.model_type == 'reg':
+                model_class = OneStepDynamicsModel
+            elif cfg.model_type ==  'resnet':
+                model_class = ResNetDynamicsModel
+            else:
+                model_class = DenseNetDynamicsModel
+            
             self.models = [
-                OneStepDynamicsModel(cfg.state_dim,
-                                     cfg.action_dim,
-                                     cfg.hidden_dims,
-                                     learning_rate=cfg.lr,
-                                     activation=cfg.activation,
-                                     grad_clip=cfg.grad_clip,
-                                     train_for_diff=cfg.train_for_diff,
-                                     seed=self.base_seed + k).to(self.device)
+                model_class(cfg.state_dim,
+                            cfg.action_dim,
+                            cfg.hidden_dims,
+                            transformations=self.transformations,
+                            learning_rate=cfg.lr,
+                            activation=cfg.activation,
+                            optim_name=cfg.optim,
+                            grad_clip=cfg.grad_clip,
+                            train_for_diff=cfg.train_for_diff,
+                            seed=self.base_seed + k).to(self.device)
                 for k in range(self.n_models)
             ]
         else:
@@ -41,7 +52,7 @@ class DynamicsEnsemble:
             
         # discrepancy args
         self.discrepancy_cfg = cfg.discrepancy
-            
+        
     def train_models(self):
         loader = iterative_dataloader(self.dataset, self.cfg.batch_size)
         trained_models = []
@@ -62,18 +73,21 @@ class DynamicsEnsemble:
     @torch.no_grad()
     def compute_onestep_discrepancy(self, states, actions, to_cpu=False):
         '''Computes discrepancy for a batch of (s, a) pairs.'''
-        assert type(self.models[0]) is OneStepDynamicsModel, "This requires one-step dynamics model to run."
+        assert type(self.models[0]) in [OneStepDynamicsModel, ResNetDynamicsModel, DenseNetDynamicsModel], "This requires one-step dynamics model to run."
         
         outs = torch.stack([model(states, actions) for model in self.models], dim=0) # (n_models, batch_size, state_dim)
+        print(f'out size (n_models, batch_size, state_dim): {outs.size()}')
         if self.discrepancy_cfg.max_diff:
             # get L2 distance between all pairs and take max difference
             diffs = [torch.norm(outs[i] - outs[j], p=2, dim=-1) for i in range(self.n_models) for j in range(i + 1, self.n_models)]
             diffs = torch.stack(diffs, dim=0) # (n_pairs, batch_size)
+            print(f'diffs size (n_pairs, batch_size): {diffs.size()}')
             diffs = diffs.max(0).values # (batch_size)
         else:
-            # look at variance of output across models (dim=0)
-            logvars = torch.var(torch.log(outs), dim=0) # (batch_size, state_dim)
-            diffs = logvars.mean(dim=-1)
+            # look at standard deviation of output across models (dim=0)
+            stds = torch.std(outs, dim=0) # (batch_size, state_dim)
+            print(f'std diffs size (batch_size, state_dim): {stds.size()}')
+            diffs = stds.mean(dim=-1)
             
         if to_cpu:
             diffs = diffs.to('cpu')

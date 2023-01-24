@@ -15,15 +15,17 @@ level: medium
 dynamics_training:
   state_dim: ${state_dim}
   action_dim: ${action_dim}
-  hidden_dims: [512, 512, 512, 512]
+  hidden_dims: [2048, 2048, 2048, 2048]
 
   single_step: true
+  model_type: reg
   normalize_inputs: true
   n_models: 5
   activation: relu
   seed: ${seed}
   device: ${device}
 
+  optim: adam
   n_epochs: 1000
   batch_size: 256
   lr: 3e-4
@@ -31,6 +33,6 @@ dynamics_training:
   train_for_diff: true
 
   discrepancy:
-    max_diff: false
+    max_diff: true
 
   

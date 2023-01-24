@@ -1,12 +1,13 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.distributions as td
 import numpy as np
 
 from milo.utils import rssm_weight_init
 
 def mlp(input_dim, hidden_sizes, output_dim, activation='relu'):
-    '''Standad MLP.'''
+    '''Standard MLP.'''
     layers = []
     act = nn.ReLU() if activation == 'relu' else nn.Tanh()
     
@@ -18,6 +19,78 @@ def mlp(input_dim, hidden_sizes, output_dim, activation='relu'):
     layers.append(nn.Linear(dim, output_dim))
     
     return nn.Sequential(*layers)
+
+class ResidualMLP(nn.Module):
+    '''Residual MLP.'''
+    def __init__(self, input_dim, hidden_sizes, output_dim, activation):
+        super().__init__()
+        layers = nn.ModuleList()
+        self.act = activation
+        
+        dim = input_dim
+        for size in hidden_sizes:
+            layers.append(nn.Linear(dim, size))
+            dim = size
+        layers.append(nn.Linear(dim, output_dim))
+        
+        self.layers = layers
+        
+    def activate(self, input: torch.Tensor):
+        if self.act == 'relu':
+            out = F.relu(input)
+        else:
+            out = F.tanh(input)
+        return out
+    
+    def forward(self, x: torch.Tensor):
+        for i, layer in enumerate(self.layers):
+            x_forwarded = layer(x)
+            
+            if x.size() == x_forwarded.size():
+                x = x + x_forwarded
+            else:
+                x = x_forwarded
+                
+            if i < len(self.layers) - 1:
+                x = self.activate(x)
+                
+        return x
+    
+class DenseMLP(nn.Module):
+    '''DenseNet MLP.'''
+    def __init__(self, input_dim, hidden_sizes, output_dim, activation):
+        super().__init__()
+        layers = nn.ModuleList()
+        self.act = activation
+        
+        sizes = [input_dim] + hidden_sizes + [output_dim]
+        for i in range(len(sizes) - 1):
+            layer_input_size = sizes[i]
+            for j in range(i):
+                layer_input_size += sizes[j]
+            layers.append(nn.Linear(layer_input_size, sizes[i+1]))
+        
+        self.layers = layers
+        
+    def activate(self, input: torch.Tensor):
+        if self.act == 'relu':
+            out = F.relu(input)
+        else:
+            out = F.tanh(input)
+        return out
+    
+    def forward(self, x):
+        for i, layer in enumerate(self.layers):
+            x_new = layer(x)
+            if i < len(self.layers) - 1:
+                x = torch.cat([x, x_new], dim=-1)
+                x = self.activate(x)
+            else:
+                x = x_new
+        
+        return x
+ 
+# ==========================================================================================================================
 
 class NormGRUCell(nn.Module):
     def __init__(self, input_size, hidden_size):
@@ -57,6 +130,7 @@ class RSSMCell(nn.Module):
                  activation='relu'):
         super().__init__()
         
+        self.n_models = n_models
         self.deter_dim = deter_dim
         self.stoc_dim = stoc_dim
         self.stoc_discrete_dim = stoc_discrete_dim
@@ -73,19 +147,18 @@ class RSSMCell(nn.Module):
             self.gru = NormGRUCell(hidden_dim, deter_dim)
             
         # decoders
-        dist_dim = self.stoc_dim * (self.stoc_discrete_dim if self.discrete else 2)
+        self.dist_dim = self.stoc_dim * (self.stoc_discrete_dim if self.discrete else 2)
         prior_mlp_lst = [nn.Sequential(
             nn.Linear(self.deter_dim, hidden_dim),
             self.activation,
-            nn.Linear(hidden_dim, dist_dim)
+            nn.Linear(hidden_dim, self.dist_dim)
         ) for _ in range(n_models)]
-        
         self.prior_mlp_lst = nn.ModuleList(prior_mlp_lst)
         
         self.post_mlp = nn.Sequential(
             nn.Linear(self.deter_dim + embed_dim, hidden_dim),
             self.activation,
-            nn.Linear(hidden_dim, dist_dim)
+            nn.Linear(hidden_dim, self.dist_dim)
         )
         
         self.apply(rssm_weight_init)
@@ -121,11 +194,11 @@ class RSSMCell(nn.Module):
         prev_latent *= mask
 
         x = torch.cat([prev_latent, action], dim=-1)
-        x = self.act(self.pre_gru(x))
+        x = self.activation(self.pre_gru(x))
         # Note the hidden state encodes deterministic dynamics
         deter_state = self.gru(x, deter_state)
         # Take the k'th model for next imagined latent
-        prior = self.prior_mlp[k](deter_state)
+        prior = self.prior_mlp_lst[k](deter_state)
         prior_dist, prior_stats = self.zdist(prior)
         if sample:
             sample_latent = prior_dist.rsample().reshape(action.size(0), -1)
@@ -148,12 +221,12 @@ class RSSMCell(nn.Module):
 
     def get_dist(self, stats):
         if self.discrete:
-            dist = torch.distributions.OneHotCategoricalStraightThrough(
+            dist = td.OneHotCategoricalStraightThrough(
                 logits=stats["logits"]
             )
         else:
-            dist = torch.distributions.normal.Normal(stats["mean"], stats["std"])
-        return torch.distributions.Independent(dist, 1)
+            dist = td.normal.Normal(stats["mean"], stats["std"])
+        return td.Independent(dist, 1)
 
     def get_feature(self, state):
         return torch.cat([state["deter"], state["stoc"]], -1)
@@ -161,9 +234,7 @@ class RSSMCell(nn.Module):
     def forward(
         self, embedding, action, mask, hidden_state, model_idx=None, sample=True
     ):
-        k = (
-            model_idx if model_idx is not None else np.random.randint(0, self.n_models)
-        )  # Same strategy as LOMPO
+        k = model_idx if model_idx is not None else np.random.randint(0, self.n_models) # Same strategy as LOMPO
 
         deter_state, prev_latent = hidden_state["deter"], hidden_state["stoc"]
 
@@ -172,12 +243,12 @@ class RSSMCell(nn.Module):
         prev_latent *= mask
 
         x = torch.cat([prev_latent, action], dim=-1)
-        x = self.act(self.pre_gru(x))
+        x = self.activation(self.pre_gru(x))
         # Note the hidden state encodes deterministic dynamics
         deter_state = self.gru(x, deter_state)
 
         # Prior
-        prior = self.prior_mlp[k](deter_state.clone())
+        prior = self.prior_mlp_lst[k](deter_state.clone())
         _, prior_stats = self.zdist(prior)
 
         # Post

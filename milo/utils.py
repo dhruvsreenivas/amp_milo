@@ -18,7 +18,7 @@ def get_mean_var_with_masks(values, masks):
     sum_mask = masks.sum()
     values_mask = values * masks
     values_mean = values_mask.sum() / sum_mask
-    min_sqr = ((((values_mask)**2)/sum_mask).sum() - ((values_mask/sum_mask).sum())**2)
+    min_sqr = ((((values_mask) ** 2)/sum_mask).sum() - ((values_mask/sum_mask).sum())**2)
     values_var = min_sqr * sum_mask / (sum_mask-1)
     return values_mean, values_var
 

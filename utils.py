@@ -70,17 +70,24 @@ def get_data(cfg):
     runner.load(rlg_config_dict)
     
     # init checkpoint
-    # checkpoint = './runs/amp_backflip/nn/amp_backflip_50.pth'
-    # checkpoint = './runs/amp_backflip/nn/amp_backflip_800.pth'
-    checkpoint = './runs/amp_backflip/nn/amp_backflip.pth'
+    checkpoint = './runs/amp_backflip/nn/amp_backflip_50.pth'
+    # checkpoint = './runs/amp_backflip/nn/amp_backflip_500.pth'
+    # checkpoint = './runs/amp_backflip/nn/amp_backflip_5000.pth'
     
-    # save_path = './data/offline/backflip/random_dataset.pt'
+    save_path = './data/offline/backflip/random_dataset.pt'
     # save_path = './data/offline/backflip/medium_dataset.pt'
-    save_path = './data/expert/backflip/expert_dataset.pt'
+    # save_path = './data/expert/backflip/expert_dataset.pt'
     
-    # total_games = 6000
+    total_games = 30000
+    # total_games = 3000
     # total_games = 2000
-    total_games = 500
+    
+    if checkpoint == './runs/amp_backflip/nn/amp_backflip_50.pth':
+        print('====== GETTING RANDOM DATASET ======')
+    elif checkpoint == './runs/amp_backflip/nn/amp_backflip_500.pth':
+        print('====== GETTING MEDIUM DATASET ======')
+    else:
+        print('====== GETTING EXPERT DATASET ======')
     
     # eval runner (define cfg + run)
     run_cfg = {
@@ -89,7 +96,7 @@ def get_data(cfg):
         'checkpoint': checkpoint,
         'log_data': True,
         'total_games': total_games,
-        'offline': "backflip.pth" not in checkpoint,
+        'offline': "backflip_5000.pth" not in checkpoint,
         'save_path': save_path,
         'sigma': None
     }
@@ -107,7 +114,7 @@ def get_data(cfg):
             print(state.size(), action.size(), next_state.size())
             print('*' * 20)
             dataset = OfflineDataset(state, action, next_state, device='cpu')
-            torch.save(dataset, f'./data/offline/backflip/{"medium" if "800" in checkpoint else "random"}_dataset.pt')
+            torch.save(dataset, f'./data/offline/backflip/{"random" if "_50." in checkpoint else "medium"}_dataset.pt')
         else:
             print('====== SAVING EXPERT DATASET ======')
             state, next_state = out
@@ -116,6 +123,40 @@ def get_data(cfg):
             print('*' * 20)
             dataset = AMPExpertDataset(state, next_state, device='cpu')
             torch.save(dataset, './data/expert/backflip/expert_dataset.pt') 
+            
+@hydra.main(config_path='./amp_cfgs', config_name='config')
+def get_data_slow(cfg):
+    # set up env
+    def create_env_thunk(**kwargs):
+        envs = isaacgymenvs.make(
+            cfg.seed, 
+            cfg.task_name, 
+            cfg.task.env.numEnvs, 
+            cfg.sim_device,
+            cfg.rl_device,
+            cfg.graphics_device_id,
+            cfg.headless,
+            cfg.multi_gpu,
+            cfg.capture_video,
+            cfg.force_render,
+            cfg,
+            **kwargs,
+        )
+        if cfg.capture_video:
+            name = 'data_collection_all'
+            envs.is_vector_env = True
+            envs = gym.wrappers.RecordVideo(
+                envs,
+                f"videos/{name}",
+                step_trigger=lambda step: step % cfg.capture_video_freq == 0,
+                video_length=cfg.capture_video_len,
+            )
+        return envs
+
+    envs = create_env_thunk()
+    
+    # get checkpoint
+    checkpoint = './runs/amp_backflip/nn/amp_backflip_5000.pth'
 
 if __name__ == '__main__':
     get_data()
