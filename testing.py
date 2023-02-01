@@ -1,8 +1,23 @@
 import torch
 import hydra
 from milo.dynamics_models.ensembles import DynamicsEnsemble
+from datasets.dataset import *
 
 '''Various testing methods.'''
+
+def test_dataloading():
+    '''test dataloading shapes'''
+    stuff = torch.load('./data/offline/backflip/medium_dataset_all.pt', map_location='cpu')
+    dataset = OfflineDataset(*stuff, n=3, device='cpu')
+    dataloader = iterative_dataloader(dataset, 32)
+    
+    batch = next(iter(dataloader))
+    s, a, r, ns, d = batch
+    print(f'state shape: {s.size()}')
+    print(f'action shape: {a.size()}')
+    print(f'reward shape: {r.size()}')
+    print(f'next state shape: {ns.size()}')
+    print(f'done shape: {d.size()}')
 
 @hydra.main(config_path='./milo_cfgs', config_name='config')
 def test_penalty(cfg):
@@ -81,4 +96,4 @@ def dataset_diffs():
     print(f'Medium state/action stats: \n state mean/std: {med_state_mean, med_state_std} \n action mean/std: {med_action_mean, med_action_std}')
     
 if __name__ == '__main__':
-    test_penalty()
+    test_dataloading()

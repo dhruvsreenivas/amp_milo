@@ -36,7 +36,7 @@ class AMPWorkspace:
         
         offline_dataset_dir = data_dir / 'offline' / self.cfg.task / f'{self.cfg.level}_dataset.pt'
         offline_data = torch.load(offline_dataset_dir)
-        self.offline_dataset = OfflineDataset(*offline_data, device=self.cfg.device)
+        self.offline_dataset = OfflineDataset(*offline_data, n=self.cfg.seq_len, device=self.cfg.device)
         
         # set up state and action dims
         self.cfg.state_dim = offline_data[0].size(1)
@@ -52,7 +52,7 @@ class AMPWorkspace:
     def train_dynamics(self):
         loss_log = self.dynamics_ensemble.train_models()
         # save dynamics ensemble to directory
-        dynamics_save_path = Path(self.dynamics_dir) / f'ensemble_{self.dyn_cfg.n_models}_{self.dyn_cfg.train_for_diff}_{self.dyn_cfg.optim}_{self.dyn_cfg.lr}.pt'
+        dynamics_save_path = Path(self.dynamics_dir) / f'ensemble_{self.dyn_cfg.n_models}_{self.dyn_cfg.train_for_diff}_{self.dyn_cfg.optim}_{self.dyn_cfg.lr}_{self.dyn_cfg.probabilistic}.pt'
         torch.save(self.dynamics_ensemble, dynamics_save_path)
         print('SAVED DYNAMICS ENSEMBLE TO DISK')
         

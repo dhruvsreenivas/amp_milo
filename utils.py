@@ -70,17 +70,19 @@ def get_data(cfg):
     runner.load(rlg_config_dict)
     
     # init checkpoint
-    checkpoint = './runs/amp_backflip/nn/amp_backflip_50.pth'
+    # checkpoint = './runs/amp_backflip/nn/amp_backflip_50.pth'
     # checkpoint = './runs/amp_backflip/nn/amp_backflip_500.pth'
-    # checkpoint = './runs/amp_backflip/nn/amp_backflip_5000.pth'
+    checkpoint = './runs/amp_backflip/nn/amp_backflip_5000.pth'
     
-    save_path = './data/offline/backflip/random_dataset.pt'
-    # save_path = './data/offline/backflip/medium_dataset.pt'
-    # save_path = './data/expert/backflip/expert_dataset.pt'
-    
-    total_games = 30000
-    # total_games = 3000
-    # total_games = 2000
+    if checkpoint == './runs/amp_backflip/nn/amp_backflip_50.pth':
+        save_path = './data/offline/backflip/random_dataset_all.pt'
+        total_games = 30000
+    elif checkpoint == './runs/amp_backflip/nn/amp_backflip_500.pth':
+        save_path = './data/offline/backflip/medium_dataset_all.pt'
+        total_games = 3000
+    else:
+        save_path = './data/expert/backflip/expert_dataset_all.pt'
+        total_games = 2000
     
     if checkpoint == './runs/amp_backflip/nn/amp_backflip_50.pth':
         print('====== GETTING RANDOM DATASET ======')
@@ -96,7 +98,6 @@ def get_data(cfg):
         'checkpoint': checkpoint,
         'log_data': True,
         'total_games': total_games,
-        'offline': "backflip_5000.pth" not in checkpoint,
         'save_path': save_path,
         'sigma': None
     }

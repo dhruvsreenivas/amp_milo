@@ -5,6 +5,9 @@ device: cuda
 seed: 0
 wandb: true
 
+# sequence length for offline dataset sampling
+seq_len: 1
+
 # whether to train model or train policy
 train_dynamics: true
 
@@ -31,6 +34,8 @@ dynamics_training:
   lr: 3e-4
   grad_clip: 0.0
   train_for_diff: true
+  probabilistic: false
+  validation: false
 
   discrepancy:
     max_diff: true

@@ -1,4 +1,5 @@
 import torch
+from torch.utils.data import random_split
 from milo.dynamics_models.one_step_dynamics import OneStepDynamicsModel, ResNetDynamicsModel, DenseNetDynamicsModel
 from milo.dynamics_models.multi_step_dynamics import MultiStepDynamicsModel
 from datasets.dataset import iterative_dataloader, get_dataset_transformations
@@ -37,6 +38,7 @@ class DynamicsEnsemble:
                             optim_name=cfg.optim,
                             grad_clip=cfg.grad_clip,
                             train_for_diff=cfg.train_for_diff,
+                            probabilistic=cfg.probabilistic,
                             seed=self.base_seed + k).to(self.device)
                 for k in range(self.n_models)
             ]
@@ -52,16 +54,26 @@ class DynamicsEnsemble:
             
         # discrepancy args
         self.discrepancy_cfg = cfg.discrepancy
+        self.validation = cfg.validation
         
     def train_models(self):
-        loader = iterative_dataloader(self.dataset, self.cfg.batch_size)
+        # add train + validation
+        if self.validation:
+            num_train = int(0.9 * len(self.dataset))
+            train_dataset, val_dataset = random_split(self.dataset, [num_train, len(self.dataset) - num_train])
+            train_loader = iterative_dataloader(train_dataset, self.cfg.batch_size)
+            val_loader = iterative_dataloader(val_dataset, self.cfg.batch_size)
+        else:
+            train_loader = iterative_dataloader(self.dataset, self.cfg.batch_size)
+            val_loader = None
+        
         trained_models = []
         loss_log = {}
         for idx in range(self.n_models):
             print('=' * 20 + f' Training model {idx} ... ' + '=' * 20)
             model = self.models[idx]
             
-            epoch_losses = model.train_model(loader, self.cfg.n_epochs, self.normalize_inputs, id=idx)
+            epoch_losses = model.train_model(train_loader, self.cfg.n_epochs, self.normalize_inputs, id=idx, val_dataloader=val_loader, logprob=True)
             loss_log[f'dynamics_training/model_{idx}_losses'] = epoch_losses
             
             trained_models.append(model)

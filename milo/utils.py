@@ -1,5 +1,9 @@
 import torch
 import torch.nn as nn
+from typing import Tuple, Union
+
+def move_to(tensors: Tuple[torch.Tensor, ...], device: Union[torch.device, str]) -> Tuple[torch.Tensor, ...]:
+    return tuple([tensor.to(device) for tensor in tensors])
 
 def rssm_weight_init(m):
     """Same weight initializations as tf2"""
