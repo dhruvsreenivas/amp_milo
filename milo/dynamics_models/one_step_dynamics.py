@@ -104,7 +104,6 @@ class OneStepDynamicsModel(nn.Module):
             loss += loss_i
             
             ns = pred + s if self.train_for_diff else pred
-            print((1.0 - done).size())
             if i < n - 1:
                 mask = (1.0 - done)[:, i].unsqueeze(-1) # (B, 1)
                 s = state[:, i + 1, :] + mask * (ns - state[:, i + 1, :])
@@ -202,19 +201,21 @@ class OneStepDynamicsModel(nn.Module):
                         action = (action - action_mean) / (action_std + 1e-8)
                         target = (target - target_mean) / (target_std + 1e-8)
                     
-                    next_pred, extras = self.forward(state, action, transform_out=False)
-                    if not self.probabilistic:
-                        loss = F.mse_loss(next_pred, target)
-                    else:
-                        # TODO fix: should this just be maximum likelihood?
-                        mean, std = extras
-                        if logprob:
-                            dist = td.Normal(mean, std.exp())
-                            loss = -dist.log_prob(target).mean()
+                    if state.dim() == 2:
+                        next_pred, extras = self.forward(state, action, transform_out=False)
+                        if not self.probabilistic:
+                            loss = F.mse_loss(next_pred, target)
                         else:
-                            mse_loss = F.mse_loss(mean, target)
-                            var_loss = std.exp().mean()
-                            loss = mse_loss + var_loss
+                            mean, std = extras
+                            if logprob:
+                                dist = td.Normal(mean, std.exp())
+                                loss = -dist.log_prob(target).mean()
+                            else:
+                                mse_loss = F.mse_loss(mean, target)
+                                var_loss = std.exp().mean()
+                                loss = mse_loss + var_loss
+                    else:
+                        loss = self.multistep_loss(state, action, next_state, done)
                         
                     val_loss += loss.detach().item()
                     count += 1 # number of batches
