@@ -34,7 +34,7 @@ class AMPWorkspace:
         expert_data = torch.load(expert_dataset_dir)
         self.expert_dataset = AMPExpertDataset(*expert_data, device=self.cfg.device)
         
-        offline_dataset_dir = data_dir / 'offline' / self.cfg.task / f'{self.cfg.level}_dataset.pt'
+        offline_dataset_dir = data_dir / 'offline' / self.cfg.task / f'{self.cfg.level}_dataset_all.pt'
         offline_data = torch.load(offline_dataset_dir)
         self.offline_dataset = OfflineDataset(*offline_data, n=self.cfg.seq_len, device=self.cfg.device)
         

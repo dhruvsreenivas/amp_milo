@@ -104,8 +104,10 @@ class OneStepDynamicsModel(nn.Module):
             loss += loss_i
             
             ns = pred + s if self.train_for_diff else pred
+            print((1.0 - done).size())
             if i < n - 1:
-                s = state[:, i + 1, :] + (1.0 - done)[i].unsqueeze(-1) * (ns - state[:, i + 1, :])
+                mask = (1.0 - done)[:, i].unsqueeze(-1) # (B, 1)
+                s = state[:, i + 1, :] + mask * (ns - state[:, i + 1, :])
                 assert s.size() == state[:, i + 1, :].size()
                 
         return loss
@@ -117,7 +119,7 @@ class OneStepDynamicsModel(nn.Module):
         
         # project for specific model run
         name=f'{self.name}_{"diff_in_state" if self.train_for_diff else "next_state"}_{self.optim_name}_{self.lr}_prob_{self.probabilistic}/dyn_model_{id}'
-        wandb.init(project='amp onestep dynamics model training', entity='dhruv_sreenivas', name=name)
+        wandb.init(project='amp onestep OR multistep dynamics model training', entity='dhruv_sreenivas', name=name)
         
         for _ in range(n_epochs):
             train_losses = []
@@ -144,9 +146,9 @@ class OneStepDynamicsModel(nn.Module):
                     state = (state - state_mean) / (state_std + 1e-8)
                     action = (action - action_mean) / (action_std + 1e-8)
                     target = (target - target_mean) / (target_std + 1e-8)
-                    
-                next_pred, extras = self.forward(state, action, transform_out=False)
+                
                 if state.dim() == 2:
+                    next_pred, extras = self.forward(state, action, transform_out=False)
                     if not self.probabilistic:
                         loss = F.mse_loss(next_pred, target)
                     else:
