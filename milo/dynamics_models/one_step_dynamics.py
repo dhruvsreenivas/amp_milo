@@ -183,10 +183,11 @@ class OneStepDynamicsModel(nn.Module):
                 val_loss = 0.0
                 count = 0
                 for batch in val_dataloader:
-                    state, action, _, next_state, _ = batch
+                    state, action, _, next_state, done = batch
                     state = state.to('cpu')
                     action = action.to('cpu')
                     next_state = next_state.to('cpu')
+                    done = done.to('cpu')
                     
                     if self.train_for_diff:
                         target = next_state - state
