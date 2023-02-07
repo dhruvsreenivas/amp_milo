@@ -58,6 +58,10 @@ class AMPWorkspace:
         
         return loss_log
     
+    def run_mbrl(self):
+        '''Run model-based reinforcement learning, with GAIL rewards specified by the trained AMP agent.'''
+        pass
+    
 @hydra.main(config_path='./milo_cfgs', config_name='config')
 def main(cfg):
     amp_ws = AMPWorkspace(cfg)

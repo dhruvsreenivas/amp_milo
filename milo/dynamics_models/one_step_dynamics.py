@@ -109,7 +109,7 @@ class OneStepDynamicsModel(nn.Module):
                 s = state[:, i + 1, :] + mask * (ns - state[:, i + 1, :])
                 assert s.size() == state[:, i + 1, :].size()
                 
-        return loss
+        return loss / n
     
     def train_model(self, train_dataloader, n_epochs, normalize_inputs, id=0, val_dataloader=None, logprob=True):
         '''Train model for n_epochs epochs on the offline dataset.'''

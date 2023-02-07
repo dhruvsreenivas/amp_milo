@@ -123,41 +123,7 @@ def get_data(cfg):
             print(state.size(), next_state.size())
             print('*' * 20)
             dataset = AMPExpertDataset(state, next_state, device='cpu')
-            torch.save(dataset, './data/expert/backflip/expert_dataset.pt') 
-            
-@hydra.main(config_path='./amp_cfgs', config_name='config')
-def get_data_slow(cfg):
-    # set up env
-    def create_env_thunk(**kwargs):
-        envs = isaacgymenvs.make(
-            cfg.seed, 
-            cfg.task_name, 
-            cfg.task.env.numEnvs, 
-            cfg.sim_device,
-            cfg.rl_device,
-            cfg.graphics_device_id,
-            cfg.headless,
-            cfg.multi_gpu,
-            cfg.capture_video,
-            cfg.force_render,
-            cfg,
-            **kwargs,
-        )
-        if cfg.capture_video:
-            name = 'data_collection_all'
-            envs.is_vector_env = True
-            envs = gym.wrappers.RecordVideo(
-                envs,
-                f"videos/{name}",
-                step_trigger=lambda step: step % cfg.capture_video_freq == 0,
-                video_length=cfg.capture_video_len,
-            )
-        return envs
-
-    envs = create_env_thunk()
-    
-    # get checkpoint
-    checkpoint = './runs/amp_backflip/nn/amp_backflip_5000.pth'
+            torch.save(dataset, './data/expert/backflip/expert_dataset.pt')
 
 if __name__ == '__main__':
     get_data()
