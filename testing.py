@@ -1,7 +1,11 @@
+import isaacgym
+import isaacgymenvs
+
 import torch
 import hydra
 from milo.dynamics_models.ensembles import DynamicsEnsemble
 from datasets.dataset import *
+from envs.amp_env import *
 
 '''Various testing methods.'''
 
@@ -94,6 +98,35 @@ def dataset_diffs():
     
     print(f'Random state/action stats: \n state mean/std: {rand_state_mean, rand_state_std} \n action mean/std: {rand_action_mean, rand_action_std}')
     print(f'Medium state/action stats: \n state mean/std: {med_state_mean, med_state_std} \n action mean/std: {med_action_mean, med_action_std}')
+
+@hydra.main(config_path='./amp_cfgs', config_name='config')
+def test_mb_env(cfg):
+    env = isaacgymenvs.make(
+        cfg.seed, 
+        cfg.task_name, 
+        cfg.task.env.numEnvs, 
+        cfg.sim_device,
+        cfg.rl_device,
+        cfg.graphics_device_id,
+        cfg.headless,
+        cfg.multi_gpu,
+        cfg.capture_video,
+        cfg.force_render,
+        cfg
+    )
+    
+    agent_chkpt = './runs/amp_backflip/nn/amp_backflip_5000.pth'
+    ensemble = torch.load('./pretrained_dynamics_models/...') # TODO make explicit
+    
+    mb_env = ModelBasedWrapper(env, cfg, agent_chkpt, ensemble)
+    
+    for _ in range(300):
+        action = torch.randn((cfg.task.env.numEnvs,) + env.action_space.shape, device=cfg.sim_device)
+        n_obs, r, done, _ = mb_env.step(action)
+        
+        print(n_obs.size())
+        print(r.size())
+        print(done.size())
     
 if __name__ == '__main__':
     test_dataloading()
