@@ -3,13 +3,13 @@ from isaacgymenvs.tasks.humanoid_amp import HumanoidAMP
 from milo.dynamics_models.ensembles import DynamicsEnsemble
 
 from isaacgymenvs.learning.amp_players import AMPPlayerContinuous
-import gym
+from isaacgymenvs.utils.reformat import omegaconf_to_dict
 import torch
 import numpy as np
 from typing import Dict
 from copy import deepcopy
 
-class ModelBasedWrapper(gym.Wrapper):
+class ModelBasedWrapper:
     def __init__(self,
                  env: HumanoidAMP,
                  cfg: Dict,
@@ -17,9 +17,8 @@ class ModelBasedWrapper(gym.Wrapper):
                  ensemble: DynamicsEnsemble,
                  init_state_buffer=None,
                  norm_thresh = float('inf')):
-        '''Model based Gym wrapper around VecTasks.'''
+        '''Model based wrapper around VecTasks.'''
         
-        super().__init__()
         self.env = env
         self.ensemble = ensemble
         # fully in eval mode
@@ -27,11 +26,11 @@ class ModelBasedWrapper(gym.Wrapper):
             model.eval()
         
         self.train_for_diff = self.ensemble.models[0].train_for_diff
-        
         self.horizon = env.max_episode_length
         
         # need to add trained amp agent to get the reward
-        params = deepcopy(cfg['params'])
+        train_cfg = omegaconf_to_dict(cfg.train)
+        params = deepcopy(train_cfg['params'])
         self.agent = AMPPlayerContinuous(params=params)
         self.agent.restore(agent_chkpt) # load in trained agent
         

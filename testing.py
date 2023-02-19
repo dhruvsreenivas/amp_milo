@@ -1,11 +1,19 @@
 import isaacgym
 import isaacgymenvs
+from isaacgymenvs.learning import amp_network_builder
+from isaacgymenvs.learning import amp_models
+from isaacgymenvs.utils.rlgames_utils import RLGPUEnv
+
+from rl_games.common import env_configurations, vecenv
+from rl_games.algos_torch import model_builder
 
 import torch
 import hydra
 from milo.dynamics_models.ensembles import DynamicsEnsemble
 from datasets.dataset import *
 from envs.amp_env import *
+import gym
+import os
 
 '''Various testing methods.'''
 
@@ -101,10 +109,59 @@ def dataset_diffs():
 
 @hydra.main(config_path='./amp_cfgs', config_name='config')
 def test_mb_env(cfg):
+
+    rank = int(os.getenv("LOCAL_RANK", "0"))
+    if cfg.multi_gpu:
+        # torchrun --standalone --nnodes=1 --nproc_per_node=2 train.py
+        cfg.sim_device = f'cuda:{rank}'
+        cfg.rl_device = f'cuda:{rank}'
+
+    cfg.sim_device = 'cpu' # because with CUDA you have to handle the tensor api, which may not be necessary right now
+    print(f'=== devices: {cfg.sim_device, cfg.rl_device} ===')
+    
+    # set up env creator fn
+    def create_env_thunk(**kwargs):
+        envs = isaacgymenvs.make(
+            cfg.seed, 
+            cfg.task_name,
+            cfg.task.env.numEnvs,
+            cfg.sim_device,
+            cfg.rl_device,
+            cfg.graphics_device_id,
+            cfg.headless,
+            cfg.multi_gpu,
+            cfg.capture_video,
+            cfg.force_render,
+            cfg,
+            **kwargs,
+        )
+        if cfg.capture_video:
+            envs.is_vector_env = True
+            envs = gym.wrappers.RecordVideo(
+                envs,
+                f"videos/nothing_worth_noting",
+                step_trigger=lambda step: step % cfg.capture_video_freq == 0,
+                video_length=cfg.capture_video_len,
+            )
+        return envs
+    
+    # set up RLGames vec env + rlgpu
+    vecenv.register('RLGPU',
+                    lambda config_name, num_actors, **kwargs: RLGPUEnv(config_name, num_actors, **kwargs))
+    env_configurations.register('rlgpu', {
+        'vecenv_type': 'RLGPU',
+        'env_creator': create_env_thunk,
+    })
+    
+    # set up model builder to handle AMP model building
+    model_builder.register_model('continuous_amp', lambda network, **kwargs : amp_models.ModelAMPContinuous(network))
+    model_builder.register_network('amp', lambda **kwargs : amp_network_builder.AMPBuilder())
+    # torch.backends.cudnn.benchmark = True
+    
     env = isaacgymenvs.make(
         cfg.seed, 
-        cfg.task_name, 
-        cfg.task.env.numEnvs, 
+        cfg.task_name,
+        cfg.task.env.numEnvs,
         cfg.sim_device,
         cfg.rl_device,
         cfg.graphics_device_id,
@@ -114,19 +171,25 @@ def test_mb_env(cfg):
         cfg.force_render,
         cfg
     )
+    print('=== created env! ===')
+    print(env.observation_space.shape, env.action_space.shape)
+    assert isinstance(env, HumanoidAMP), "not an instance of humanoid amp env!"
     
     agent_chkpt = './runs/amp_backflip/nn/amp_backflip_5000.pth'
-    ensemble = torch.load('./pretrained_dynamics_models/...') # TODO make explicit
+    ensemble = torch.load('./pretrained_dynamics_models/backflip/medium/densenet/ensemble_5_True_sgd_0.0003_False.pt', map_location=cfg.sim_device)
+    print('=== loaded agent + ensemble checkpoint! ===')
     
     mb_env = ModelBasedWrapper(env, cfg, agent_chkpt, ensemble)
+    print('=== created model based wrapper! ===')
     
     for _ in range(300):
         action = torch.randn((cfg.task.env.numEnvs,) + env.action_space.shape, device=cfg.sim_device)
         n_obs, r, done, _ = mb_env.step(action)
         
+        print('output shapes')
         print(n_obs.size())
         print(r.size())
         print(done.size())
     
 if __name__ == '__main__':
-    test_dataloading()
+    test_mb_env()
